@@ -2,7 +2,8 @@
 import sys
 import numpy
 import matplotlib.pyplot as plt
-import pylab 
+import pylab
+from scipy.stats import chi2
 #from random import random
 import math
 #from scipy.special import factorial
@@ -14,18 +15,24 @@ from python.Random import Random
 
 if __name__ == "__main__":
     if '-h' in sys.argv or '--help' in sys.argv:
-        print ("Usage: %s [-seed number] [-Nwalk number] [-Nstep number] " % sys.argv[0])
+        print ("Usage: %s [-seed number] [-Nwalk number] [-Nstep number] [-Lstep] [-CL number]" % sys.argv[0])
         print
         sys.exit(1)
 
     # default seed
-    seed = 786
+    seed = 5565
     
     # default Nwalk
     Nwalk = 20000
     
     # default Nstep
     Nstep = 10
+    
+    # default Lstep
+    Lstep = 1.
+
+    # default Confidence level
+    CL = 0.98
 
     # read the user-provided seed from the command line (if there)
     if '-seed' in sys.argv:
@@ -41,6 +48,16 @@ if __name__ == "__main__":
         Ns = int(sys.argv[p+1])
         if Ns > 0:
             Nstep = Ns
+    if '-Lstep' in sys.argv:
+        p = sys.argv.index('-Lstep')
+        Ls = float(sys.argv[p+1])
+        if Ls > 0:
+            Lstep = Ls
+    if '-CL' in sys.argv:
+        p = sys.argv.index('-CL')
+        cl = float(sys.argv[p+1])
+        if 0. < cl < 1.:
+            CL = cl
     # class instance of our Random class using seed
     random = Random(seed)
     
@@ -48,29 +65,43 @@ if __name__ == "__main__":
     ################ RANDOM WALK #######################
     #############################################################
     # Define positions and displacement in arrays
-    x = numpy.zeros(Nstep) 
-    y = numpy.zeros(Nstep)
     xfinal = []
     yfinal = []
     finald = []
-    # filling the coordinates with Categorical numbers
+    finald2 = []
+######## PERFORM THE RANDOM WALK ################################# 
     for j in range(1,Nwalk+1):
+        x = numpy.zeros(Nstep) 
+        y = numpy.zeros(Nstep)
         for i in range(1, Nstep):
-            z1, z2 = random.BoxMuller()
+            z1, z2 = random.BoxMuller(Lstep)
             x[i] = x[i - 1] + z1
             y[i] = y[i - 1] + z2
-            finald.append(numpy.sqrt(x[Nstep-1]*x[Nstep-1]+y[Nstep-1]*y[Nstep-1]))
-            xfinal.append(x[Nstep-1])
-            yfinal.append(y[Nstep-1])
+        finald.append(numpy.sqrt(x[Nstep-1]*x[Nstep-1]+y[Nstep-1]*y[Nstep-1]))
+        finald2.append(x[Nstep-1]*x[Nstep-1]+y[Nstep-1]*y[Nstep-1])
+        xfinal.append(x[Nstep-1])
+        yfinal.append(y[Nstep-1])
 #########  PARAMETER ESTIMATION ############################
     addt = 0.
-    for j in range(0,len(finald)):
-        addt = addt + finald[j]*finald[j]
-        par = numpy.sqrt(1./(2.*len(finald)) * addt)
+    for j in range(0,Nwalk):
+        addt = addt + finald2[j]
+        par = 1./(2.*Nwalk) * addt
+############# ERRORS ######################################
+    alph = 1. - CL
+    avr2 = sum(finald2)/Nwalk
+    CLmin = Nwalk*avr2/chi2.ppf(1.-alph/2. , 2*Nwalk)
+    CLmax = Nwalk*avr2/chi2.ppf(alph/2. , 2*Nwalk)
 ################################################################
+##############PRINT RESULTS ###################################
+    print('############################################################')
+    print('                                                           #')
+    print('Estimated parameter: ', round(par,15) ,'                   #')
+    print('C.L. ', CL*100, '% in [',round(CLmin,15),',',round(CLmax,15),']  #' )
+    print('                                                           #')
+    print('############################################################')
 ############### RANDOM WALK PLOTS#########################
 ################################################################
-    plt.plot(xfinal, yfinal, 'p', color='steelblue')
+    plt.scatter(xfinal, yfinal, s = 0.5 , alpha = 0.5 , color='steelblue')
     plt.grid(axis='x', alpha=0.75)
     plt.grid(axis='y', alpha=0.75)
     plt.xlabel('x')
@@ -79,8 +110,9 @@ if __name__ == "__main__":
     plt.show()
 ################################################################
     f1 = numpy.linspace(0.0,max(finald),1000)
-    f2 = f1/(par**2) * numpy.exp(-f1*f1/(2.*par**2))
-    plt.plot(f1,f2, color='black', linestyle='dashed', label = 'Rayleigh distribution, \u03C3= ' + str(round(par,4)))
+    f2 = f1/par * numpy.exp(-f1*f1/(2.*par))
+    plt.plot(f1,f2, color='black', linestyle='dashed', label = 'Rayleigh distribution, $ \sigma^2$= ' + str(round(par,3)) + ' C.L. '
+                 + str(CL*100) + '% in [' + str(round(CLmin,3)) +',' + str(round(CLmax,3)) + ']' )
     n, bins, patches = plt.hist(finald, 80, color ='steelblue', density = True, alpha=0.6, fill = True, hatch='/',histtype='step', linewidth=1, label = 'data')
     plt.legend(loc='upper right')
     plt.title('Distribution of the data compared to Rayleigh distribution ')

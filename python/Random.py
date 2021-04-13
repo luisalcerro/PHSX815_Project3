@@ -44,10 +44,10 @@ class Random:
 
 
     # function returns two Gaussian numbers with the Box-Muller method
-    def BoxMuller(self):
+    def BoxMuller(self,Lstep):
         R = self.rand()
-        X = np.cos(2*np.pi*R)
-        Y = np.sin(2*np.pi*R)
+        X = Lstep*np.cos(2*np.pi*R)
+        Y = Lstep*np.sin(2*np.pi*R)
         return X, Y
         
 
